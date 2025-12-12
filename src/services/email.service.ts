@@ -218,4 +218,76 @@ export class EmailService {
 
     if (error) throw error;
   }
+
+  async getInboxView(limit: number = 50, offset: number = 0): Promise<Email[]> {
+    const { data, error } = await supabase
+      .from('inbox_view')
+      .select('*')
+      .range(offset, offset + limit - 1);
+
+    if (error) throw error;
+    return data || [];
+  }
+
+  async getUnreadCount(): Promise<number> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return 0;
+
+    const { data, error } = await supabase
+      .from('unread_count_view')
+      .select('unread_count')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data?.unread_count || 0;
+  }
+
+  async getThread(threadId: string): Promise<Email[]> {
+    const { data, error } = await supabase
+      .from('emails')
+      .select('*')
+      .eq('thread_id', threadId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  }
+
+  async replyToEmail(parentEmailId: string, email: {
+    subject: string;
+    body: string;
+  }): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const parentEmail = await this.getEmailById(parentEmailId);
+    if (!parentEmail) throw new Error('Parent email not found');
+
+    const { data: settings } = await supabase
+      .from('email_settings')
+      .select('email_address, signature')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    const fromEmail = settings?.email_address || 'user@example.com';
+    const bodyWithSignature = settings?.signature
+      ? `${email.body}\n\n${settings.signature}`
+      : email.body;
+
+    const { error } = await supabase
+      .from('emails')
+      .insert({
+        thread_id: parentEmail.thread_id,
+        from_email: fromEmail,
+        to_email: [parentEmail.from_email],
+        subject: email.subject,
+        body: bodyWithSignature,
+        is_sent: true,
+        reply_to_id: parentEmailId,
+        user_id: user.id
+      });
+
+    if (error) throw error;
+  }
 }

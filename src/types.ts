@@ -9,6 +9,7 @@ export interface Email {
   is_read: boolean;
   is_sent: boolean;
   is_auto_reply: boolean;
+  reply_to_id: string | null;
   created_at: string;
   user_id: string;
 }
@@ -18,6 +19,7 @@ export interface EmailThread {
   subject: string;
   participants: string[];
   last_message_at: string;
+  message_count: number;
   created_at: string;
   user_id: string;
 }
